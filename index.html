@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>308 Legacy</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f4f1ea;
+    margin: 0;
+    padding: 20px;
+    color: #2b2620;
+  }
+  .container { max-width: 800px; margin: 0 auto; }
+  h1 {
+    text-align: center;
+    color: #6b4226;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #8a7f6f;
+    margin-bottom: 30px;
+    font-size: 14px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .card h2 {
+    margin-top: 0;
+    font-size: 18px;
+    color: #6b4226;
+  }
+  form { display: grid; gap: 12px; }
+  input, select {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    width: 100%;
+  }
+  button {
+    background: #6b4226;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button:hover { background: #543219; }
+  .entry {
+    border-bottom: 1px solid #eee;
+    padding: 12px 0;
+  }
+  .entry:last-child { border-bottom: none; }
+  .entry-name { font-weight: 600; font-size: 16px; color: #2b2620; }
+  .entry-meta { font-size: 13px; color: #8a7f6f; margin-top: 2px; }
+  .entry-links { margin-top: 6px; font-size: 13px; }
+  .entry-links a { color: #6b4226; text-decoration: none; margin-right: 12px; }
+  .entry-links a:hover { text-decoration: underline; }
+  #status { font-size: 13px; margin-top: 8px; }
+  .ok { color: #2e7d32; }
+  .err { color: #c62828; }
+  #loading { text-align: center; color: #8a7f6f; padding: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>308 Legacy</h1>
+  <p class="subtitle">Room 308 — Past & Present Students</p>
+
+  <div class="card">
+    <h2>নিজের তথ্য যোগ করো</h2>
+    <form id="entryForm">
+      <input type="text" id="name" placeholder="নাম" required>
+      <input type="text" id="dept" placeholder="ডিপার্টমেন্ট (যেমন CSE_68)" required>
+      <input type="text" id="years" placeholder="সাল/বর্ষ (যেমন 25-)" required>
+      <input type="text" id="facebook" placeholder="ফেসবুক প্রোফাইল লিংক (ঐচ্ছিক)">
+      <input type="text" id="phone" placeholder="ফোন নাম্বার (ঐচ্ছিক)">
+      <button type="submit">Add করো</button>
+      <div id="status"></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>সব স্টুডেন্টের লিস্ট</h2>
+    <div id="loading">লোড হচ্ছে...</div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+async function loadEntries() {
+  const listEl = document.getElementById('list');
+  const loadingEl = document.getElementById('loading');
+  try {
+    const res = await fetch('/api/entries');
+    const data = await res.json();
+    loadingEl.style.display = 'none';
+    if (!data.length) {
+      listEl.innerHTML = '<p style="color:#8a7f6f">এখনো কোনো এন্ট্রি নেই। প্রথম জন হও!</p>';
+      return;
+    }
+    listEl.innerHTML = data.map(e => `
+      <div class="entry">
+        <div class="entry-name">${escapeHtml(e.name)}</div>
+        <div class="entry-meta">${escapeHtml(e.dept)} · ${escapeHtml(e.years)}</div>
+        <div class="entry-links">
+          ${e.facebook ? `<a href="${escapeHtml(e.facebook)}" target="_blank">Facebook</a>` : ''}
+          ${e.phone ? `<span>📞 ${escapeHtml(e.phone)}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    loadingEl.textContent = 'লোড করতে সমস্যা হয়েছে।';
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('entryForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = 'যোগ করা হচ্ছে...';
+  statusEl.className = '';
+
+  const payload = {
+    name: document.getElementById('name').value.trim(),
+    dept: document.getElementById('dept').value.trim(),
+    years: document.getElementById('years').value.trim(),
+    facebook: document.getElementById('facebook').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+  };
+
+  try {
+    const res = await fetch('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('failed');
+    statusEl.textContent = 'সফলভাবে যোগ হয়েছে!';
+    statusEl.className = 'ok';
+    document.getElementById('entryForm').reset();
+    loadEntries();
+  } catch (err) {
+    statusEl.textContent = 'সমস্যা হয়েছে, আবার চেষ্টা করো।';
+    statusEl.className = 'err';
+  }
+});
+
+loadEntries();
+</script>
+</body>
+</html>
